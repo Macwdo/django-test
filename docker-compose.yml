@@ -1,0 +1,70 @@
+version: "3.9"
+
+services:
+  django_test_app:
+    container_name: "django_test_app"
+    build:
+      context: ./backend
+    ports:
+      - 8000:8000
+    volumes:
+      - ./backend/django_test_app/:/app
+    env_file:
+      - ./backend/.env
+    depends_on:
+      - django_test_db
+      - django_test_rabbitmq
+
+  django_test_db:
+    container_name: django_test_db
+    image: postgres:alpine
+    volumes:
+      - ./.data/postgres/data/:/var/lib/postgresql/data/
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - 5431:5432
+  
+  django_test_rabbitmq:
+    container_name: django_test_rabbitmq
+    image: rabbitmq:3-management-alpine
+    environment:
+      RABBITMQ_ERLANG_COOKIE: "rabbitmq"
+      RABBITMQ_DEFAULT_VHOST: "/"
+      RABBITMQ_DEFAULT_USER: "guest"
+      RABBITMQ_DEFAULT_PASS: "guest"
+    ports:
+      - 5671:5671
+      - 5672:5672
+      - 15672:15672
+    volumes:
+      - ./.data/rabbitmq/data/:/var/lib/rabbitmq/
+
+  worker:
+    container_name: worker
+    image: django_test_app:latest
+    command: celery -A project worker --loglevel=INFO
+    env_file:
+      - ./backend/.env
+    restart: always
+    depends_on:
+      - django_test_app
+      - django_test_rabbitmq
+
+  flower:
+    container_name: flower
+    image: django_test_app:latest
+    command: celery -A project flower
+    env_file:
+      - ./backend/.env
+    ports:
+      - 5555:5555
+    restart: always
+    depends_on:
+      - django_test_app
+      - django_test_rabbitmq
+
+
+
